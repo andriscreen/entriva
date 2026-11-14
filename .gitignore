@@ -1,0 +1,14 @@
+node_modules/
+.nuxt/
+.output/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.codebase-memory/
+supabase/.temp/
+supabase/.branches/
+*.log
+.DS_Store
+Thumbs.db
