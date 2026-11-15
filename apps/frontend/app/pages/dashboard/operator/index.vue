@@ -53,7 +53,7 @@ const availableDockCount = computed(() => Math.max(activeDocks.value.length - oc
 const waitingForDockCount = computed(() => yardQueues.value.filter(queue => queue.status === 'waiting_in_yard').length)
 const yardNodes = computed(() => (
   mapNodes.value
-    .filter(node => node.node_type === 'gate' || node.node_type === 'holding_yard' || node.node_type === 'dock')
+    .filter(node => node.node_type === 'dock')
     .map((node) => {
       const vehicleCount = yardQueues.value.filter(queue => getQueueNodeId(queue) === node.id).length
 
@@ -287,7 +287,7 @@ onUnmounted(() => {
         </CardHeader>
         <CardContent class="pt-0">
           <p class="text-xs text-muted-foreground">
-            Queue status from Supabase
+            Queue status
           </p>
         </CardContent>
       </Card>
@@ -372,12 +372,12 @@ onUnmounted(() => {
             <CardTitle class="flex items-center gap-2"><MapPinned class="size-4" /> Yard nodes</CardTitle>
             <Badge v-if="!isLoading && !dashboardError" variant="secondary">{{ yardQueues.length }} total</Badge>
           </div>
-          <CardDescription>Vehicles in yard statuses, grouped by their current node.</CardDescription>
+          <CardDescription>Vehicles in yard statuses, grouped by dock.</CardDescription>
         </CardHeader>
         <CardContent class="space-y-2 p-4 pt-2">
           <p v-if="isLoading" class="py-4 text-sm text-muted-foreground">Loading yard nodes…</p>
           <p v-else-if="dashboardError" class="py-4 text-sm text-muted-foreground">Yard node data is unavailable.</p>
-          <p v-else-if="yardNodes.length === 0" class="py-4 text-sm text-muted-foreground">No active yard nodes configured for this plant.</p>
+          <p v-else-if="yardNodes.length === 0" class="py-4 text-sm text-muted-foreground">No active docks configured for this plant.</p>
           <Card v-for="node in yardNodes" v-else :key="node.id" size="sm" class="bg-muted/30">
             <CardContent class="flex items-center justify-between p-2.5">
               <div>

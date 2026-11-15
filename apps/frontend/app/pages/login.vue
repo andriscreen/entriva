@@ -309,12 +309,11 @@ async function handleLogin() {
           class="absolute inset-0 size-full object-cover"
         />
 
-        <!-- Image Overlay -->
         <div
           class="absolute inset-0 bg-gradient-to-t from-[#090909]/95 via-[#090909]/20 to-[#090909]/10"
         />
 
-        <!-- Visual Content -->
+        
         <div class="absolute inset-x-0 bottom-0 p-7 text-white sm:p-10 lg:p-12">
 
           <h2 class="max-w-lg text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
