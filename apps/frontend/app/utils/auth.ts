@@ -10,6 +10,10 @@ const dashboardPathByRole = {
 export type UserRole = keyof typeof dashboardPathByRole
 
 const roleByDashboardSubpage: Record<string, UserRole> = {
+  '/dashboard/admin-logistics/docks': 'admin_logistics',
+  '/dashboard/admin-logistics/history': 'admin_logistics',
+  '/dashboard/admin-logistics/operators': 'admin_logistics',
+  '/dashboard/admin-logistics/vendors': 'admin_logistics',
   '/dashboard/operator/live-queue': 'operator_logistics',
   '/dashboard/operator/queue-history': 'operator_logistics',
   '/dashboard/operator/notifications': 'operator_logistics',

@@ -46,9 +46,8 @@ const profileUserId = ref('')
 const isSavingProfile = ref(false)
 const isSavingPassword = ref(false)
 const profileError = ref('')
-const profileSuccess = ref('')
 const passwordError = ref('')
-const passwordSuccess = ref('')
+const { showSuccess } = useSuccessModal()
 
 const accountEmail = computed(() => user.value?.email ?? '')
 const selectedAvatar = computed(() => profile.avatarPath || avatarOptions[0])
@@ -99,7 +98,6 @@ async function saveProfile() {
 
   isSavingProfile.value = true
   profileError.value = ''
-  profileSuccess.value = ''
 
   if (!profileUserId.value) {
     profileError.value = 'Sesi akun tidak tersedia. Muat ulang halaman dan coba lagi.'
@@ -144,7 +142,7 @@ async function saveProfile() {
       return
     }
 
-    profileSuccess.value = 'Profil berhasil diperbarui.'
+    showSuccess('Profil berhasil diperbarui.')
   } catch (error) {
     console.error('Failed to save profile', error)
     const details = error instanceof Error ? error.message : 'Kesalahan tidak dikenal.'
@@ -158,7 +156,6 @@ async function savePassword() {
   if (isSavingPassword.value) return
 
   passwordError.value = ''
-  passwordSuccess.value = ''
 
   if (passwordForm.password.length < 8) {
     passwordError.value = 'Kata sandi harus memiliki minimal 8 karakter.'
@@ -176,7 +173,7 @@ async function savePassword() {
 
     passwordForm.password = ''
     passwordForm.confirmPassword = ''
-    passwordSuccess.value = 'Kata sandi berhasil diperbarui.'
+    showSuccess('Kata sandi berhasil diperbarui.')
   } catch (error) {
     console.error('Failed to update password', error)
     passwordError.value = 'Kata sandi gagal diperbarui. Silakan coba lagi.'
@@ -304,7 +301,6 @@ async function returnToDashboard() {
               </div>
             </div>
 
-            <p v-if="profileSuccess" role="status" class="text-sm text-emerald-700 dark:text-emerald-400">{{ profileSuccess }}</p>
             <div class="flex justify-end border-t pt-5">
               <Button type="submit" :disabled="isSavingProfile">
                 <LoaderCircle v-if="isSavingProfile" class="size-4 animate-spin" />
@@ -337,7 +333,6 @@ async function returnToDashboard() {
               </div>
             </div>
             <p v-if="passwordError" role="alert" class="text-sm text-red-700 dark:text-red-300">{{ passwordError }}</p>
-            <p v-if="passwordSuccess" role="status" class="text-sm text-emerald-700 dark:text-emerald-400">{{ passwordSuccess }}</p>
             <div class="flex justify-end border-t pt-5">
               <Button type="submit" variant="outline" :disabled="isSavingPassword">
                 <LoaderCircle v-if="isSavingPassword" class="size-4 animate-spin" />

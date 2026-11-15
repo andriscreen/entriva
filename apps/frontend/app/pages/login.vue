@@ -191,7 +191,7 @@ async function handleLogin() {
         <div class="mx-auto flex w-full max-w-[390px] flex-1 flex-col justify-center">
           <div class="mb-8 text-center">
             <div
-              class="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl text-yellow-400"
+              class="mx-auto flex items-center justify-center rounded-2xl text-yellow-400"
             >
             </div>
 

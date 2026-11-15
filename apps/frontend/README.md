@@ -72,4 +72,10 @@ yarn preview
 bun run preview
 ```
 
+## Logistics account provisioning
+
+Creating operator accounts uses a server-only Supabase secret. Configure
+`NUXT_SUPABASE_SECRET_KEY` in the frontend server environment; never expose this
+key through a `NUXT_PUBLIC_` variable or include it in client-side code.
+
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.

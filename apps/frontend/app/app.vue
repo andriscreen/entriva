@@ -7,5 +7,6 @@
 <template>
   <NuxtLayout>
     <NuxtPage />
+    <GlobalSuccessModal />
   </NuxtLayout>
 </template>

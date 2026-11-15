@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 definePageMeta({ layout: 'dashboard' })
 
-type QueueStatus = 'pending' | 'approved' | 'waiting_in_yard' | 'called_to_dock' | 'unloading'
+type QueueStatus = 'waiting_in_yard' | 'called_to_dock' | 'unloading'
 type QueueRecord = {
   id: string
   queue_number: string
@@ -37,7 +37,6 @@ const dashboardError = ref('')
 const realtimeStatus = ref('Connecting')
 const inYardStatuses = new Set<QueueStatus>(['waiting_in_yard', 'called_to_dock', 'unloading'])
 const dockOccupancyStatuses = new Set<QueueStatus>(['called_to_dock', 'unloading'])
-const queueStatuses: QueueStatus[] = ['pending', 'approved', ...inYardStatuses]
 let dashboardChannel: ReturnType<typeof supabase.channel> | undefined
 
 const activeDocks = computed(() => mapNodes.value.filter(node => node.node_type === 'dock'))
@@ -70,8 +69,6 @@ const unassignedYardVehicleCount = computed(() => {
 })
 
 const queueStatusLabels: Record<QueueStatus, string> = {
-  pending: 'Pending approval',
-  approved: 'Approved',
   waiting_in_yard: 'Waiting in yard',
   called_to_dock: 'Called to dock',
   unloading: 'Unloading',
@@ -103,7 +100,7 @@ async function loadPlantData() {
       .from('logistics_queues')
       .select('id, queue_number, driver_name, driver_phone, license_plate, status, current_node_id, assigned_dock_id, vendor:vendors(name)')
       .eq('plant_location', currentPlant)
-      .in('status', queueStatuses)
+      .in('status', [...inYardStatuses])
       .order('created_at', { ascending: false })
       .limit(3),
     supabase
@@ -334,7 +331,9 @@ onUnmounted(() => {
         <CardContent class="space-y-3">
           <p v-if="isLoading" class="py-8 text-center text-sm text-muted-foreground">Loading queue…</p>
           <p v-else-if="dashboardError" class="py-8 text-center text-sm text-muted-foreground">Queue data is unavailable.</p>
-          <p v-else-if="queues.length === 0" class="py-8 text-center text-sm text-muted-foreground">No active queue entries for this plant.</p>
+          <p v-else-if="queues.length === 0" class="py-8 text-center text-sm text-muted-foreground">
+            No vehicles have entered the yard yet. Vehicles appear after security scans their barcode at the gate.
+          </p>
           <article
             v-for="queue in queues"
             v-else

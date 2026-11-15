@@ -2,8 +2,10 @@
 import {
   Bell,
   BookOpen,
+  Building2,
   ChevronDown,
   CircleUserRound,
+  Database,
   History,
   LayoutDashboard,
   LogOut,
@@ -65,6 +67,10 @@ const accountAvatar = computed(() => accountAvatarPath.value)
 const roleKeyByPath = {
   '/dashboard/super-admin': 'super-admin-system',
   '/dashboard/admin-logistics': 'admin-logistics',
+  '/dashboard/admin-logistics/docks': 'admin-logistics',
+  '/dashboard/admin-logistics/history': 'admin-logistics',
+  '/dashboard/admin-logistics/operators': 'admin-logistics',
+  '/dashboard/admin-logistics/vendors': 'admin-logistics',
   '/dashboard/operator': 'operator-logistics',
   '/dashboard/admin-fs': 'admin-fs',
   '/dashboard/user': 'user-paragonian',
@@ -100,9 +106,9 @@ const navItems = {
     { label: 'Audit', icon: ShieldCheck, href: '/dashboard/super-admin?tab=audit' },
   ],
   'admin-logistics': [
-    { label: 'Queue', icon: Truck, href: '/dashboard/admin-logistics' },
-    { label: 'Docking', icon: Map, href: '/dashboard/admin-logistics?tab=docks' },
-    { label: 'Operator', icon: Users, href: '/dashboard/admin-logistics?tab=operators' },
+    { label: 'Driver approval queue', icon: Truck, href: '/dashboard/admin-logistics' },
+    { label: 'History', icon: History, href: '/dashboard/admin-logistics/history' },
+    { label: 'Docking', icon: Map, href: '/dashboard/admin-logistics/docks' },
   ],
   'operator-logistics': [
     { label: 'Command Center', icon: LayoutDashboard, href: '/dashboard/operator' },
@@ -125,6 +131,11 @@ const navItems = {
   ],
 } as const
 
+const dataManagementItems = [
+  { label: 'Akun operator', icon: Users, href: '/dashboard/admin-logistics/operators' },
+  { label: 'Vendor', icon: Building2, href: '/dashboard/admin-logistics/vendors' },
+] as const
+
 const yardOperationsItems = [
   { label: 'Live vehicle queue', icon: Truck, href: '/dashboard/operator/live-queue' },
   { label: 'Queue History', icon: History, href: '/dashboard/operator/queue-history' },
@@ -141,11 +152,28 @@ const roleLabelMap = {
 
 const currentNav = computed(() => navItems[roleKey.value as keyof typeof navItems] ?? navItems['super-admin-system'])
 const roleLabel = computed(() => roleLabelMap[roleKey.value as keyof typeof roleLabelMap] ?? 'Super Admin System')
+const isDataManagementActive = computed(() => (
+  roleKey.value === 'admin-logistics' && dataManagementItems.some(item => isActiveNavItem(item.href))
+))
+const isDataManagementOpen = ref(isDataManagementActive.value)
+const isYardOperationsActive = computed(() => (
+  roleKey.value === 'operator-logistics' && yardOperationsItems.some(item => isActiveNavItem(item.href))
+))
+const isYardOperationsOpen = ref(isYardOperationsActive.value)
 const activeNavItem = computed(() => (
   currentNav.value.find(item => isActiveNavItem(item.href))
+  ?? dataManagementItems.find(item => isActiveNavItem(item.href))
   ?? yardOperationsItems.find(item => isActiveNavItem(item.href))
   ?? currentNav.value[0]
 ))
+
+watch(isDataManagementActive, (isActive) => {
+  if (isActive) isDataManagementOpen.value = true
+})
+
+watch(isYardOperationsActive, (isActive) => {
+  if (isActive) isYardOperationsOpen.value = true
+})
 
 function formatNotificationTime(value: string | null) {
   if (!value) return 'Time unavailable'
@@ -266,6 +294,8 @@ function openQueueNotification(id: string) {
 
 watch(() => route.fullPath, () => {
   isMobileSidebarOpen.value = false
+  if (isDataManagementActive.value) isDataManagementOpen.value = true
+  if (isYardOperationsActive.value) isYardOperationsOpen.value = true
 })
 
 function isActiveNavItem(href: string) {
@@ -278,6 +308,14 @@ function isActiveNavItem(href: string) {
 
 function toggleSidebar() {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
+}
+
+function toggleDataManagement() {
+  isDataManagementOpen.value = !isDataManagementOpen.value
+}
+
+function toggleYardOperations() {
+  isYardOperationsOpen.value = !isYardOperationsOpen.value
 }
 
 async function handleSignOut() {
@@ -410,40 +448,151 @@ onUnmounted(() => {
               </Badge>
             </NuxtLink>
           </Button>
-          <div v-if="roleKey === 'operator-logistics'" class="mt-4">
-            <div
-              class="mb-1 flex items-center gap-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500"
-              :class="isSidebarCollapsed ? 'lg:justify-center lg:px-0' : ''"
-            >
-              <Truck class="size-4 shrink-0" />
-              <span :class="isSidebarCollapsed ? 'lg:hidden' : ''">Yard Operations</span>
-            </div>
+          <div v-if="roleKey === 'admin-logistics'" class="mt-1">
             <Button
-              v-for="item in yardOperationsItems"
-              :key="item.label"
-              as-child
+              type="button"
               variant="ghost"
-              class="mb-1 h-10 w-full rounded-xl text-sm transition-colors duration-300"
+              class="h-11 w-full rounded-xl text-sm transition-colors duration-300"
               :class="[
-                isSidebarCollapsed ? 'justify-center px-0 lg:justify-center' : 'ml-2 w-[calc(100%-0.5rem)] justify-start gap-3 px-3',
-                isActiveNavItem(item.href)
+                isSidebarCollapsed ? 'justify-center px-0 lg:justify-center' : 'justify-start gap-3 px-3',
+                isDataManagementActive
                   ? 'bg-[#FACC15] text-[#090909] shadow-sm hover:bg-[#FDE68A] hover:text-[#090909]'
                   : 'text-slate-300 hover:bg-white/[0.07] hover:text-white',
               ]"
-              :title="isSidebarCollapsed ? item.label : undefined"
+              :title="isSidebarCollapsed ? 'Manajemen Data' : undefined"
+              :aria-expanded="isDataManagementOpen"
+              aria-controls="admin-logistics-data-management"
+              @click="toggleDataManagement"
             >
-              <NuxtLink :to="item.href" class="flex items-center" :class="isSidebarCollapsed ? 'justify-center' : 'gap-3'" @click="isMobileSidebarOpen = false">
-                <component :is="item.icon" class="size-[18px]" />
+              <span class="flex min-w-0 items-center" :class="isSidebarCollapsed ? 'justify-center' : 'gap-3'">
+                <Database class="size-[18px] shrink-0" />
                 <span
                   class="min-w-0 max-w-48 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out motion-reduce:transition-none"
                   :class="isSidebarCollapsed
                     ? 'lg:max-w-0 lg:translate-x-1 lg:opacity-0'
                     : 'lg:max-w-48 lg:translate-x-0 lg:opacity-100'"
                 >
-                  {{ item.label }}
+                  Manajemen Data
                 </span>
-              </NuxtLink>
+                <ChevronDown
+                  v-if="!isSidebarCollapsed"
+                  class="ml-auto size-4 shrink-0 transition-transform duration-200"
+                  :class="isDataManagementOpen ? 'rotate-180' : ''"
+                />
+              </span>
             </Button>
+            <div
+              v-if="isDataManagementOpen"
+              id="admin-logistics-data-management"
+              class="mt-1 space-y-1"
+            >
+              <Button
+                v-for="item in dataManagementItems"
+                :key="item.href"
+                as-child
+                variant="ghost"
+                class="h-10 w-full rounded-xl text-sm transition-colors duration-300"
+                :class="[
+                  isSidebarCollapsed
+                    ? 'justify-center px-0 lg:justify-center'
+                    : 'ml-2 w-[calc(100%-0.5rem)] justify-start gap-3 px-3',
+                  isActiveNavItem(item.href)
+                    ? 'bg-[#FACC15] text-[#090909] shadow-sm hover:bg-[#FDE68A] hover:text-[#090909]'
+                    : 'text-slate-300 hover:bg-white/[0.07] hover:text-white',
+                ]"
+                :title="isSidebarCollapsed ? item.label : undefined"
+              >
+                <NuxtLink
+                  :to="item.href"
+                  class="flex items-center"
+                  :class="isSidebarCollapsed ? 'justify-center' : 'gap-3'"
+                  @click="isMobileSidebarOpen = false"
+                >
+                  <component :is="item.icon" class="size-[18px]" />
+                  <span
+                    class="min-w-0 max-w-48 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out motion-reduce:transition-none"
+                    :class="isSidebarCollapsed
+                      ? 'lg:max-w-0 lg:translate-x-1 lg:opacity-0'
+                      : 'lg:max-w-48 lg:translate-x-0 lg:opacity-100'"
+                  >
+                    {{ item.label }}
+                  </span>
+                </NuxtLink>
+              </Button>
+            </div>
+          </div>
+          <div v-if="roleKey === 'operator-logistics'" class="mt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              class="h-11 w-full rounded-xl text-sm transition-colors duration-300"
+              :class="[
+                isSidebarCollapsed ? 'justify-center px-0 lg:justify-center' : 'justify-start gap-3 px-3',
+                isYardOperationsActive
+                  ? 'bg-[#FACC15] text-[#090909] shadow-sm hover:bg-[#FDE68A] hover:text-[#090909]'
+                  : 'text-slate-300 hover:bg-white/[0.07] hover:text-white',
+              ]"
+              :title="isSidebarCollapsed ? 'Yard Operations' : undefined"
+              :aria-expanded="isYardOperationsOpen"
+              aria-controls="operator-yard-operations"
+              @click="toggleYardOperations"
+            >
+              <span class="flex min-w-0 items-center" :class="isSidebarCollapsed ? 'justify-center' : 'gap-3'">
+                <Truck class="size-[18px] shrink-0" />
+                <span
+                  class="min-w-0 max-w-48 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out motion-reduce:transition-none"
+                  :class="isSidebarCollapsed
+                    ? 'lg:max-w-0 lg:translate-x-1 lg:opacity-0'
+                    : 'lg:max-w-48 lg:translate-x-0 lg:opacity-100'"
+                >
+                  Yard Operations
+                </span>
+                <ChevronDown
+                  v-if="!isSidebarCollapsed"
+                  class="ml-auto size-4 shrink-0 transition-transform duration-200"
+                  :class="isYardOperationsOpen ? 'rotate-180' : ''"
+                />
+              </span>
+            </Button>
+            <div
+              v-if="isYardOperationsOpen"
+              id="operator-yard-operations"
+              class="mt-1 space-y-1"
+            >
+              <Button
+                v-for="item in yardOperationsItems"
+                :key="item.href"
+                as-child
+                variant="ghost"
+                class="h-10 w-full rounded-xl text-sm transition-colors duration-300"
+                :class="[
+                  isSidebarCollapsed
+                    ? 'justify-center px-0 lg:justify-center'
+                    : 'ml-2 w-[calc(100%-0.5rem)] justify-start gap-3 px-3',
+                  isActiveNavItem(item.href)
+                    ? 'bg-[#FACC15] text-[#090909] shadow-sm hover:bg-[#FDE68A] hover:text-[#090909]'
+                    : 'text-slate-300 hover:bg-white/[0.07] hover:text-white',
+                ]"
+                :title="isSidebarCollapsed ? item.label : undefined"
+              >
+                <NuxtLink
+                  :to="item.href"
+                  class="flex items-center"
+                  :class="isSidebarCollapsed ? 'justify-center' : 'gap-3'"
+                  @click="isMobileSidebarOpen = false"
+                >
+                  <component :is="item.icon" class="size-[18px]" />
+                  <span
+                    class="min-w-0 max-w-48 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out motion-reduce:transition-none"
+                    :class="isSidebarCollapsed
+                      ? 'lg:max-w-0 lg:translate-x-1 lg:opacity-0'
+                      : 'lg:max-w-48 lg:translate-x-0 lg:opacity-100'"
+                  >
+                    {{ item.label }}
+                  </span>
+                </NuxtLink>
+              </Button>
+            </div>
           </div>
         </nav>
 

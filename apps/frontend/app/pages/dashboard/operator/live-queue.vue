@@ -14,7 +14,7 @@ import {
 
 definePageMeta({ layout: 'dashboard' })
 
-const activeStatuses = ['pending', 'approved', 'waiting_in_yard', 'called_to_dock', 'unloading'] as const
+const activeStatuses = ['waiting_in_yard', 'called_to_dock', 'unloading'] as const
 type QueueStatus = typeof activeStatuses[number]
 type QueueFilter = 'all' | QueueStatus
 type QueueRecord = {
@@ -39,8 +39,6 @@ const pageSize = 20
 const inYardStatuses: QueueStatus[] = ['waiting_in_yard', 'called_to_dock', 'unloading']
 const dockOccupancyStatuses = new Set<QueueStatus>(['called_to_dock', 'unloading'])
 const queueStatusLabels: Record<QueueStatus, string> = {
-  pending: 'Pending approval',
-  approved: 'Approved',
   waiting_in_yard: 'Waiting in yard',
   called_to_dock: 'Called to dock',
   unloading: 'Unloading',
@@ -440,7 +438,9 @@ onUnmounted(() => {
         <p v-if="queueActionError" role="alert" class="text-sm text-red-500">{{ queueActionError }}</p>
         <p v-if="isLoading" class="py-10 text-center text-sm text-muted-foreground">Loading queue…</p>
         <p v-else-if="pageError" class="py-10 text-center text-sm text-muted-foreground">Queue data is unavailable.</p>
-        <p v-else-if="queues.length === 0" class="py-10 text-center text-sm text-muted-foreground">No active queue entries match these filters.</p>
+        <p v-else-if="queues.length === 0" class="py-10 text-center text-sm text-muted-foreground">
+          No yard entries match these filters. Vehicles appear after security scans their barcode at the gate.
+        </p>
 
         <div v-else class="space-y-3 pt-2">
           <article v-for="(queue, index) in queues" :key="queue.id" class="rounded-lg border bg-card p-4">
@@ -499,7 +499,6 @@ onUnmounted(() => {
                 >
                   {{ queue.status === 'waiting_in_yard' ? 'Call' : 'Call again' }}
                 </Button>
-                <span v-else-if="queue.status === 'pending' || queue.status === 'approved'" class="self-center text-sm text-muted-foreground">No call action</span>
                 <Button
                   v-if="queue.status === 'called_to_dock' || queue.status === 'unloading'"
                   size="sm"
