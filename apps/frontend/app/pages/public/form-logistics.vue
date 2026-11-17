@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Download,
   LoaderCircle,
   Package,
   Phone,
@@ -10,6 +11,7 @@ import {
   UserRound,
   Warehouse,
 } from 'lucide-vue-next'
+import QRCode from 'qrcode'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -40,6 +42,8 @@ const vendorSelection = ref('')
 const driverName = ref('')
 const driverPhone = ref('')
 const licensePlate = ref('')
+const estimatedArrivalAt = ref('')
+const minimumEstimatedArrivalAt = ref('')
 const cargoSelection = ref('')
 const customCargoType = ref('')
 const isLoadingVendors = ref(true)
@@ -47,10 +51,54 @@ const isSubmitting = ref(false)
 const vendorError = ref('')
 const formError = ref('')
 const submittedQueueNumber = ref('')
+const ticketCreatedAt = ref('')
+const qrCodeDataUrl = ref('')
+const ticketImageDataUrl = ref('')
+const isTicketReady = ref(false)
+const ticketError = ref('')
 
 const cargoType = computed(() => (
   cargoSelection.value === 'other' ? customCargoType.value.trim() : cargoSelection.value
 ))
+
+watch(submittedQueueNumber, async (queueNumber) => {
+  isTicketReady.value = false
+  qrCodeDataUrl.value = ''
+  ticketImageDataUrl.value = ''
+  ticketError.value = ''
+  if (!queueNumber) return
+
+  try {
+    const dataUrl = await QRCode.toDataURL(queueNumber, {
+      errorCorrectionLevel: 'M',
+      margin: 4,
+      width: 560,
+      color: {
+        dark: '#090909',
+        light: '#FFFFFF',
+      },
+    })
+    if (submittedQueueNumber.value !== queueNumber) return
+
+    qrCodeDataUrl.value = dataUrl
+    const ticketImage = await createTicketImage(
+      dataUrl,
+      queueNumber,
+      ticketCreatedAt.value,
+      plantLocation.value,
+    )
+    if (submittedQueueNumber.value !== queueNumber) return
+
+    ticketImageDataUrl.value = ticketImage
+    isTicketReady.value = true
+  } catch (error) {
+    if (submittedQueueNumber.value !== queueNumber) return
+    console.error('Unable to generate branded logistics queue ticket', error)
+    ticketError.value = qrCodeDataUrl.value
+      ? 'QR code siap dipindai, tetapi gambar tiket berlogo gagal dibuat.'
+      : 'QR code gagal dibuat. Simpan nomor antrean sebagai alternatif.'
+  }
+})
 
 function getErrorMessage(error: unknown) {
   if (typeof error === 'object' && error !== null && 'data' in error) {
@@ -73,6 +121,36 @@ function normalizePhone(phone: string) {
 
 function normalizeLicensePlate(value: string) {
   return value.toLocaleUpperCase('id-ID').trim().replace(/\s+/g, ' ')
+}
+
+function getJakartaDateTimeLocal(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value)
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => (
+    parts.find(part => part.type === type)?.value ?? ''
+  )
+
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}`
+}
+
+function getEstimatedArrivalIso(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null
+
+  const estimatedArrival = new Date(`${value}:00+07:00`)
+  if (
+    Number.isNaN(estimatedArrival.getTime())
+    || getJakartaDateTimeLocal(estimatedArrival) !== value
+    || estimatedArrival.getTime() <= Date.now()
+  ) return null
+
+  return estimatedArrival.toISOString()
 }
 
 function updateLicensePlate(value: string | number) {
@@ -99,16 +177,147 @@ function createQueueNumber() {
   return `TRK-${date}-${crypto.randomUUID().toUpperCase()}`
 }
 
+function loadTicketImage(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Gambar tiket gagal dimuat.'))
+    image.src = source
+  })
+}
+
+function formatTicketCreatedAt(value: string) {
+  const formattedDate = new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone: 'Asia/Jakarta',
+  }).format(new Date(value))
+
+  return `${formattedDate} WIB`
+}
+
+async function createTicketImage(
+  qrCode: string,
+  queueNumber: string,
+  createdAt: string,
+  destinationPlant: string,
+) {
+  const [logo, qrImage] = await Promise.all([
+    loadTicketImage('/img/entrivahitam.png'),
+    loadTicketImage(qrCode),
+  ])
+  const canvas = document.createElement('canvas')
+  canvas.width = 960
+  canvas.height = 1320
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Canvas 2D tidak tersedia untuk membuat tiket.')
+
+  context.fillStyle = '#F4F4F5'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.fillStyle = '#FFFFFF'
+  context.fillRect(32, 32, 896, 1256)
+  context.strokeStyle = '#E5E7EB'
+  context.lineWidth = 2
+  context.strokeRect(32, 32, 896, 1256)
+  context.fillStyle = '#FACC15'
+  context.fillRect(32, 32, 896, 12)
+
+  const logoBox = { x: 82, y: 76, width: 90, height: 72 }
+  const logoScale = Math.min(logoBox.width / logo.naturalWidth, logoBox.height / logo.naturalHeight)
+  const logoWidth = logo.naturalWidth * logoScale
+  const logoHeight = logo.naturalHeight * logoScale
+  context.drawImage(
+    logo,
+    logoBox.x + (logoBox.width - logoWidth) / 2,
+    logoBox.y + (logoBox.height - logoHeight) / 2,
+    logoWidth,
+    logoHeight,
+  )
+
+  context.textAlign = 'left'
+  context.textBaseline = 'middle'
+  context.fillStyle = '#090909'
+  context.font = '700 44px Arial, sans-serif'
+  context.fillText('ENTRIVA', 190, 108)
+  context.fillStyle = '#171717'
+  context.font = '600 17px Arial, sans-serif'
+  context.fillText('PLANT ACCESS PORTAL', 192, 145)
+  context.textAlign = 'right'
+  context.font = '700 17px Arial, sans-serif'
+  context.fillText('LOGISTICS PASS', 875, 118)
+
+  context.strokeStyle = '#E5E7EB'
+  context.beginPath()
+  context.moveTo(82, 178)
+  context.lineTo(878, 178)
+  context.stroke()
+
+  context.textAlign = 'center'
+  context.fillStyle = '#090909'
+  context.font = '700 32px Arial, sans-serif'
+  context.fillText('TIKET ANTREAN KENDARAAN', 480, 226)
+  context.fillStyle = '#52525B'
+  context.font = '22px Arial, sans-serif'
+  context.fillText('Tunjukkan QR code ini saat check-in di gate', 480, 267)
+
+  context.fillStyle = '#FFFFFF'
+  context.fillRect(180, 302, 600, 600)
+  context.strokeStyle = '#E5E7EB'
+  context.strokeRect(180, 302, 600, 600)
+  context.imageSmoothingEnabled = false
+  context.drawImage(qrImage, 200, 322, 560, 560)
+  context.imageSmoothingEnabled = true
+
+  context.fillStyle = '#090909'
+  context.font = '700 24px monospace'
+  context.fillText(queueNumber, 480, 950)
+  context.fillStyle = '#71717A'
+  context.font = '700 16px Arial, sans-serif'
+  context.fillText('PLANT TUJUAN', 480, 1000)
+  context.fillStyle = '#171717'
+  context.font = '600 23px Arial, sans-serif'
+  context.fillText(destinationPlant.toLocaleUpperCase('id-ID'), 480, 1035)
+  context.fillStyle = '#71717A'
+  context.font = '700 16px Arial, sans-serif'
+  context.fillText('DIBUAT PADA', 480, 1083)
+  context.fillStyle = '#171717'
+  context.font = '600 21px Arial, sans-serif'
+  context.fillText(formatTicketCreatedAt(createdAt), 480, 1118)
+
+  context.fillStyle = '#FDE68A'
+  context.fillRect(92, 1160, 776, 64)
+  context.fillStyle = '#171717'
+  context.font = '700 18px Arial, sans-serif'
+  context.fillText('MENUNGGU PERSETUJUAN ADMIN LOGISTIK', 480, 1192)
+  context.fillStyle = '#71717A'
+  context.font = '16px Arial, sans-serif'
+  context.fillText('QR code ini memuat nomor antrean kendaraan Anda.', 480, 1252)
+
+  return canvas.toDataURL('image/png')
+}
+
 function resetForm() {
   plantLocation.value = ''
   vendorSelection.value = ''
   driverName.value = ''
   driverPhone.value = ''
   licensePlate.value = ''
+  estimatedArrivalAt.value = ''
+  minimumEstimatedArrivalAt.value = getJakartaDateTimeLocal(new Date())
   cargoSelection.value = ''
   customCargoType.value = ''
   formError.value = ''
   submittedQueueNumber.value = ''
+  ticketCreatedAt.value = ''
+}
+
+function downloadQRCode() {
+  if (!ticketImageDataUrl.value || !isTicketReady.value) return
+
+  const link = document.createElement('a')
+  link.href = ticketImageDataUrl.value
+  link.download = `${submittedQueueNumber.value}-tiket-entriva.png`
+  link.click()
 }
 
 async function submitRequest() {
@@ -118,6 +327,7 @@ async function submitRequest() {
   const normalizedPhone = normalizePhone(driverPhone.value)
   const normalizedPlate = normalizeLicensePlate(licensePlate.value)
   const normalizedCargo = cargoType.value.trim()
+  const estimatedArrivalIso = getEstimatedArrivalIso(estimatedArrivalAt.value)
 
   if (!plantOptions.includes(plantLocation.value)) {
     formError.value = 'Pilih plant tujuan terlebih dahulu.'
@@ -133,6 +343,10 @@ async function submitRequest() {
   }
   if (!/^[A-Z0-9]+(?: [A-Z0-9]+)*$/.test(normalizedPlate) || normalizedPlate.length > 12) {
     formError.value = 'Masukkan nomor polisi yang valid, misalnya B 9876 UZX.'
+    return
+  }
+  if (!estimatedArrivalIso) {
+    formError.value = 'Pilih estimasi kedatangan di plant dengan tanggal dan waktu yang akan datang (WIB).'
     return
   }
   if (!normalizedCargo || normalizedCargo.length > 120) {
@@ -155,11 +369,13 @@ async function submitRequest() {
         driver_name: normalizedName,
         driver_phone: normalizedPhone,
         license_plate: normalizedPlate,
+        estimated_arrival_at: estimatedArrivalIso,
         cargo_type: normalizedCargo,
         status: 'pending',
       })
 
     if (error) throw error
+    ticketCreatedAt.value = new Date().toISOString()
     submittedQueueNumber.value = queueNumber
   } catch (error) {
     console.error('Unable to submit public logistics request', error)
@@ -169,7 +385,10 @@ async function submitRequest() {
   }
 }
 
-onMounted(loadVendors)
+onMounted(() => {
+  minimumEstimatedArrivalAt.value = getJakartaDateTimeLocal(new Date())
+  void loadVendors()
+})
 </script>
 
 <template>
@@ -235,29 +454,80 @@ onMounted(loadVendors)
               </p>
             </header>
 
-            <Card v-if="submittedQueueNumber" class="border-emerald-200 bg-emerald-50/70 shadow-none">
-              <CardHeader class="items-center text-center">
-                <span class="flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                  <CheckCircle2 class="size-6" />
-                </span>
-                <CardTitle class="text-xl text-slate-900">Pengajuan berhasil dikirim</CardTitle>
-                <CardDescription class="text-slate-600">
-                  Simpan nomor antrean ini. Pengajuan menunggu pemeriksaan admin logistik.
-                </CardDescription>
+            <Card
+              v-if="submittedQueueNumber"
+              class="overflow-hidden rounded-2xl border-[#171717]/15 bg-white py-0 text-[#090909] shadow-sm"
+            >
+              <div class="h-1.5 bg-[#FACC15]" />
+              <CardHeader class="gap-3 px-5 pt-5 pb-0">
+                <div class="flex items-start gap-3">
+                  <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#171717] text-[#FACC15]">
+                    <CheckCircle2 class="size-5" />
+                  </span>
+                  <div class="space-y-1">
+                    <CardTitle class="text-xl text-[#090909]">Pengajuan berhasil dikirim</CardTitle>
+                    <CardDescription class="text-sm leading-relaxed text-slate-600">
+                      Tunjukkan QR code ini di gate untuk check-in.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent class="space-y-4 text-center">
-                <p class="rounded-xl border border-emerald-200 bg-white px-4 py-3 font-mono text-sm font-semibold text-slate-900">
-                  {{ submittedQueueNumber }}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  class="border-slate-200 text-slate-700 hover:bg-slate-100"
-                  @click="resetForm"
+              <CardContent class="space-y-4 px-5 pt-4 pb-5">
+                <div class="rounded-xl border border-[#FACC15]/60 bg-[#FDE68A]/30 p-4">
+                  <div class="mt-3 flex min-h-64 items-center justify-center overflow-hidden rounded-lg border border-[#171717]/10 bg-white">
+                    <img
+                      v-if="ticketImageDataUrl"
+                      :src="ticketImageDataUrl"
+                      role="img"
+                      aria-label="Tiket QR code Entriva"
+                      class="h-auto w-full"
+                    />
+                    <img
+                      v-else-if="qrCodeDataUrl"
+                      :src="qrCodeDataUrl"
+                      role="img"
+                      aria-label="QR code nomor antrean"
+                      class="m-4 size-56 max-w-full object-contain sm:size-60"
+                    />
+                    <LoaderCircle v-else-if="!ticketError" class="size-5 animate-spin text-[#171717]" />
+                  </div>
+                  <p v-if="!ticketImageDataUrl" class="mt-3 break-all text-center font-mono text-sm font-semibold text-[#090909]">
+                    {{ submittedQueueNumber }}
+                  </p>
+                </div>
+                <p
+                  v-if="ticketError"
+                  role="alert"
+                  class="text-center text-xs leading-relaxed text-red-700"
                 >
-                  Buat pengajuan lain
-                  <ArrowRight class="size-4" />
-                </Button>
+                  {{ ticketError }}
+                </p>
+                <div class="flex items-start gap-2 rounded-lg border border-[#171717]/10 px-3 py-2.5">
+                  <CheckCircle2 class="mt-0.5 size-4 shrink-0 text-[#171717]" />
+                  <p class="text-xs leading-relaxed text-slate-600">
+                    Pengajuan menunggu persetujuan admin logistik. QR code dapat diunduh atau ditunjukkan dari layar ponsel.
+                  </p>
+                </div>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    :disabled="!isTicketReady"
+                    class="h-11 bg-[#171717] text-white hover:bg-[#090909] disabled:opacity-50"
+                    @click="downloadQRCode"
+                  >
+                    <Download class="size-4" />
+                    Unduh QR code
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    class="h-11 border-[#171717]/20 text-[#171717] hover:bg-[#FDE68A]/40"
+                    @click="resetForm"
+                  >
+                    Buat pengajuan baru
+                    <ArrowRight class="size-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -373,6 +643,23 @@ onMounted(loadVendors)
                   />
                 </div>
                 <p class="text-xs text-slate-500">Otomatis menjadi huruf kapital.</p>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="estimated-arrival" class="text-sm font-medium text-slate-700">
+                  Estimasi kedatangan ke plant (WIB) <span class="text-amber-600">*</span>
+                </Label>
+                <Input
+                  id="estimated-arrival"
+                  v-model="estimatedArrivalAt"
+                  type="datetime-local"
+                  :min="minimumEstimatedArrivalAt"
+                  required
+                  class="h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:border-amber-400 focus-visible:ring-amber-400/30"
+                />
+                <p class="text-xs text-slate-500">
+                  Isi perkiraan waktu tiba di plant tujuan, bukan waktu mengisi formulir.
+                </p>
               </div>
 
               <div class="space-y-2">

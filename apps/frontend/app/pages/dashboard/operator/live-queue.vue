@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import QueuePlantTransferAction from '@/components/logistics/QueuePlantTransferAction.vue'
 
 definePageMeta({ layout: 'dashboard' })
 
@@ -23,6 +24,7 @@ type QueueRecord = {
   driver_name: string
   driver_phone: string
   license_plate: string
+  checked_in_at: string | null
   status: QueueStatus
   current_node_id: string | null
   assigned_dock_id: string | null
@@ -123,6 +125,19 @@ function getWhatsAppUrl(phone: string) {
   return internationalNumber ? `https://wa.me/${internationalNumber}` : ''
 }
 
+function formatCheckInTime(timestamp: string | null) {
+  if (!timestamp) return 'Waktu check-in tidak tersedia'
+
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return 'Waktu check-in tidak tersedia'
+
+  return new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Asia/Jakarta',
+  }).format(date)
+}
+
 async function loadYardQueues(currentPlant: string): Promise<YardQueueRecord[]> {
   const result: YardQueueRecord[] = []
   const batchSize = 1000
@@ -155,10 +170,12 @@ async function loadLiveData() {
   try {
     let queueQuery = supabase
       .from('logistics_queues')
-      .select('id, queue_number, driver_name, driver_phone, license_plate, status, current_node_id, assigned_dock_id, vendor:vendors(name)', { count: 'exact' })
+      .select('id, queue_number, driver_name, driver_phone, license_plate, checked_in_at, status, current_node_id, assigned_dock_id, vendor:vendors(name)', { count: 'exact' })
       .eq('plant_location', plantLocation.value)
       .in('status', [...activeStatuses])
-      .order('created_at', { ascending: false })
+      .order('checked_in_at', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
       .range((pageNumber.value - 1) * pageSize, pageNumber.value * pageSize - 1)
 
     if (statusFilter.value !== 'all') {
@@ -405,7 +422,7 @@ onUnmounted(() => {
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle>All active vehicles</CardTitle>
-            <CardDescription class="mt-1">Search by license plate or filter by queue status.</CardDescription>
+            <CardDescription class="mt-1">Queue order follows gate check-in time (FIFO).</CardDescription>
           </div>
           <Badge variant="secondary" class="gap-1.5">
             <Activity class="size-3" />
@@ -457,7 +474,7 @@ onUnmounted(() => {
               <Badge variant="outline">{{ queueStatusLabels[queue.status] }}</Badge>
             </div>
 
-            <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <div>
                 <p class="text-xs text-muted-foreground">Driver</p>
                 <p class="mt-1 text-sm font-medium">{{ queue.driver_name }}</p>
@@ -465,6 +482,10 @@ onUnmounted(() => {
               <div>
                 <p class="text-xs text-muted-foreground">Vendor</p>
                 <p class="mt-1 text-sm font-medium">{{ queue.vendor?.name ?? '—' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-muted-foreground">Gate check-in (WIB)</p>
+                <p class="mt-1 text-sm font-medium">{{ formatCheckInTime(queue.checked_in_at) }}</p>
               </div>
               <div class="space-y-1">
                 <p class="text-xs text-muted-foreground">Location / dock</p>
@@ -491,6 +512,13 @@ onUnmounted(() => {
                 <p v-else class="mt-1 text-sm font-medium">{{ getQueueLocation(queue) }}</p>
               </div>
               <div class="flex flex-wrap items-end gap-2">
+                <QueuePlantTransferAction
+                  v-if="queue.status === 'waiting_in_yard'"
+                  :queue="queue"
+                  :source-plant="plantLocation"
+                  :disabled="queueActionIds.includes(queue.id)"
+                  @transferred="loadLiveData"
+                />
                 <Button
                   v-if="queue.status === 'waiting_in_yard' || queue.status === 'called_to_dock'"
                   size="sm"

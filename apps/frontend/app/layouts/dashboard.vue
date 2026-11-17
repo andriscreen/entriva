@@ -234,11 +234,13 @@ function handleQueueCheckIn(record: unknown) {
     queueNumber: queue.queue_number,
     licensePlate: queue.license_plate,
     driverName: queue.driver_name,
-    checkedInAt: typeof queue.updated_at === 'string'
-      ? queue.updated_at
-      : typeof queue.created_at === 'string'
-        ? queue.created_at
-        : null,
+    checkedInAt: typeof queue.checked_in_at === 'string'
+      ? queue.checked_in_at
+      : typeof queue.updated_at === 'string'
+        ? queue.updated_at
+        : typeof queue.created_at === 'string'
+          ? queue.created_at
+          : null,
   })
 }
 

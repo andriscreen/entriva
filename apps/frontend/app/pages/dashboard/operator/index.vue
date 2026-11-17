@@ -13,6 +13,7 @@ type QueueRecord = {
   driver_name: string
   driver_phone: string
   license_plate: string
+  checked_in_at: string | null
   status: QueueStatus
   current_node_id: string | null
   assigned_dock_id: string | null
@@ -98,10 +99,12 @@ async function loadPlantData() {
   const [queueResult, nodeResult, yardQueueResult] = await Promise.all([
     supabase
       .from('logistics_queues')
-      .select('id, queue_number, driver_name, driver_phone, license_plate, status, current_node_id, assigned_dock_id, vendor:vendors(name)')
+      .select('id, queue_number, driver_name, driver_phone, license_plate, checked_in_at, status, current_node_id, assigned_dock_id, vendor:vendors(name)')
       .eq('plant_location', currentPlant)
-      .in('status', [...inYardStatuses])
-      .order('created_at', { ascending: false })
+      .eq('status', 'waiting_in_yard')
+      .order('checked_in_at', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
       .limit(3),
     supabase
       .from('map_nodes')
@@ -313,7 +316,7 @@ onUnmounted(() => {
         <CardHeader class="flex-row items-start justify-between space-y-0">
           <div>
             <CardTitle>Live vehicle queue</CardTitle>
-            <CardDescription class="mt-1">Latest 3 queue entries for {{ plantLocation || 'your plant' }}.</CardDescription>
+            <CardDescription class="mt-1">Next 3 vehicles in gate check-in order (FIFO) for {{ plantLocation || 'your plant' }}.</CardDescription>
           </div>
           <div class="flex items-center gap-2">
             <Badge variant="secondary" class="gap-1.5">
